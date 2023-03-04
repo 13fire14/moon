@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import requests
 import re
@@ -32,6 +34,104 @@ utc_now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)#协�
 beijing_now = utc_now.astimezone(SHA_TZ)
 time_login=beijing_now.strftime('%Y-%m-%d %H:%M:%S')
 st.write(time_login)
+#%%函数板块
+def show_51_book():
+    data51=pd.read_csv('./51书城所有书目.csv')    
+    st.dataframe(data51)
+def show_biqu_book(name):
+    databiqu=pd.read_csv(f'./笔趣阁所有书目{name}.csv')
+    st.dataframe(databiqu)
+def get_51_class(url,user_agent):
+    header={'user-agent':random.choice(user_agent)}
+    resp=requests.get(url,headers=header)
+    resp.encoding='utf-8'
+    title=re.findall('<a href=".*?" title="(.*?)">.*?</a><span>',resp.text,re.S)
+    href=re.findall('<li><a href="(.*?)" title=".*?">.*?</a><span>',resp.text,re.S)
+    print(title,href)
+    return title,href
+def get_51_class_book(href,user_agent):
+    header={'user-agent':random.choice(user_agent)}
+    resp1=requests.get(href,headers=header)
+    resp1.encoding='utf-8'
+    href_list1=re.findall('<li class=".*"><a href="(.*)">.*</a>\n</li>',resp1.text)
+    title_list1=re.findall('<li class=".*"><a href=".*">(.*)</a>\n</li>',resp1.text)
+    print(title_list1,href_list1)
+    return title_list1,href_list1
+@st.cache_data
+def get_51_all_book(user_agent):
+    
+    title_class=[]
+    title_class_book=[]
+    href_class_book=[]
+    data51=pd.DataFrame()
+    #%% 51书城
+    url='https://www.51shucheng.net/fenlei'
+    title,href=get_51_class(url,user_agent)
+    time.sleep(30)
+    for i in range(len(href)):
+        st.sidebar.write(i)
+        title_list1,href_list1=get_51_class_book(href[i],user_agent)
+        time.sleep(5)
+        title_class=title_class+[title[i]]*len(title_list1)
+        title_class_book=title_class_book+title_list1
+        href_class_book=href_class_book+href_list1
+        time.sleep(5)
+        
+    data51['书名']=title_class_book
+    data51['网址']=href_class_book
+    data51['类别']=title_class
+    data51.to_csv('./51书城所有书目.csv',index=False)
+    # data51.to_excel('./51书城所有书目.xlsx',index=False)
+#%% 拿笔趣阁的小说来
+#获得笔趣所有分类
+def get_biqu_allclass(url,user_agent):
+    header={'user-agent':random.choice(user_agent)}
+    resp=requests.get(url,headers=header)
+    resp.encoding='gbk'
+    e=etree.HTML(resp.text)
+    
+    fenlei=e.xpath('/html/body/div[2]/div[1]/ul/li/a/@href')
+    leibie=e.xpath('/html/body/div[2]/div[1]/ul/li/a/text()')[1:]
+    fenlei_url=[]
+    for i in range(len(fenlei)):
+        fenlei_url.append(fenlei[0]+fenlei[i+1])
+        if i==len(fenlei)-2:
+            break
+    return fenlei_url,leibie
+#%%获取该分类总页数
+def get_biqu_fenlei_page(url,user_agent):
+    header={'user-agent':random.choice(user_agent)}
+    resp=requests.get(url,headers=header)
+    resp.encoding='gbk'
+    all_page=int(re.findall('<a href=".*" class="last">(.*)</a></div>',resp.text)[0])
+    return all_page
+#%%获取该分类单页所有小说
+def get_biqu_onepage_book(url,user_agent):
+    #url='https://www.bbiquge.net/top/size/785.html'
+    header={'user-agent':random.choice(user_agent)}
+    proxy='14.106.247.182:30102'
+    proxies={'http':'http://'+proxy}
+    resp=requests.get(url,headers=header,proxies=proxies)
+    resp.encoding='gbk'
+    e=etree.HTML(resp.text)
+    # book_list=e.xpath('/html/body/div[3]/div[1]/div[2]/div/div[2]/ul/li/div[1]/a/@href')
+    # name_list=e.xpath('/html/body/div[3]/div[1]/div[2]/div/div[2]/ul/li/div[1]/a/@title')
+    # author_list=e.xpath('/html/body/div[3]/div[1]/div[2]/div/div[2]/ul/li/div[3]/text()')
+    #leibie_list=e.xpath('/html/body/div[3]/div[2]/ul[2]/li/span[1]/text()')
+    e.xpath('/html/body/div[3]/div[2]/ul[2]/li[9]/span[1]/text()')
+    author_list=e.xpath('/html/body/div[3]/div[2]/ul[2]/li/span[3]/text()')
+    count_list=e.xpath('/html/body/div[3]/div[2]/ul[2]/li/span[5]/text()')
+    book_list=e.xpath('/html/body/div[3]/div[2]/ul[2]/li/span[2]/a/@href')
+    name_list=e.xpath('/html/body/div[3]/div[2]/ul[2]/li/span[2]/a/text()')
+    time_list=e.xpath('/html/body/div[3]/div[2]/ul[2]/li/span[7]/text()')
+    return book_list,name_list,author_list,count_list,time_list
+# #%%初始化笔趣阁的数据
+# def chushihua():
+#     book=[]
+#     name=[]
+#     author=[]
+#     leibie=[]
+#     return book,name,author,leibie
 #%%导入列表中
 def daoru(list1,list2):
     for  b in list1:
@@ -160,6 +260,63 @@ def get_book_again(user_agent,url,name,author):
         time_need=time.time()-time_waste
     st.write('全部下载完毕')
     return time_need,count,leibie
+#%%爬取笔趣阁所有小说信息
+@st.cache_data
+def get_biqu_all_book(user_agent,n1,n2):
+    
+    # url='https://www.bbiquge.net/'
+    url='https://www.bbiquge.net/top/size/'
+    
+    # #获取分类
+    # fenlei_url,leibie1=get_biqu_allclass(url,user_agent)
+    book=[]
+    name=[]
+    author=[]
+    last_time=[]
+    count_word=[]
+    
+    #获取分类下总页数
+    
+    # for i in range(len(fenlei_url)):
+    #     st.sidebar.write(i)
+    #     all_page=get_biqu_fenlei_page(fenlei_url[i],user_agent)
+    #     time.sleep(10)
+        
+    #     for j in (range(all_page)):
+    #         if j%10==0:
+    #             st.write(j)
+    #         if i<=5:
+    #             url=(fenlei_url[i].split('_')[0]+"_"+f"{j+1}"+'/')
+    #         elif i==6:
+    #             url=(fenlei_url[i]+f'{j+1}')
+    #         elif i==7:
+    #             url=(fenlei_url[i]+f'{j+1}'+'.html')
+    #             break
+    all_page=get_biqu_fenlei_page(url,user_agent)
+    st.write(f'总的有{all_page}页')
+    for j in (range(n1,n2)):
+        if j%20==0:
+            st.write(f'{j}/{all_page}')
+        time.sleep(0.5)
+        url_next=(url+f'{j+1}'+'.html')
+        book_list,name_list,author_list,count_list,time_list=get_biqu_onepage_book(url_next,user_agent)
+        daoru(book_list,book)
+        daoru(name_list,name)
+        daoru(author_list,author)
+        #daoru(leibie_list,leibie)
+        daoru(count_list,count_word)
+        daoru(time_list,last_time)
+            
+            
+    #%% 保存爬取到的数据
+    data222=pd.DataFrame()
+    data222['书名']=name
+    data222['网址']=book
+    #data222['类别']=leibie
+    data222['作者']=author
+    data222['字数']=count_word
+    data222['更新时间']=last_time
+    data222.to_csv(f'./笔趣阁所有书目{n2}.csv',index=False)
 #%%查看数据
 def show_data():
     # f=open('./用户数据.txt','r',encoding='utf-8')
@@ -179,12 +336,41 @@ def delete_data(file,book_list):
         if '用户数据' in i:
             txt=os.path.join(file,f'{i}')
             os.remove(txt)
-#%%导入数据
+#%%导入数据库
+@st.cache_data
+def get_all_book(name):
+
+    file=os.getcwd()
+    file_local=os.listdir(file)
+    biqu_data=pd.DataFrame()
+    for j in file_local:
+        if '.csv' in j:
+            if f'{name}' in j:
+                txt=os.path.join(file,f'{j}')
+                data1=pd.read_csv(txt)
+                #st.dataframe(data1)
+                biqu_data=pd.concat([biqu_data,data1])
+    #st.dataframe(biqu_data)
+    st.write(biqu_data.shape)
+    st.write(biqu_data.head(n))
+    return biqu_data
 @st.cache_data
 def get_biqu_book():
-    data=pd.read_csv('./data/book.csv')
-    st.dataframe(data)
-    return data
+    bq_data=pd.read_csv('./data/book.csv')
+    return bq_data
+#%% 删除笔趣书目
+def delete_biqu(name):
+    file=os.getcwd()
+    file_local=os.listdir(file)
+    book_list=['请选择']
+    for b in file_local:
+        if '.csv' in b:
+            if f'{name}'  in b:
+                book_list.append(b)
+    b=st.selectbox('请选择删除的数据集', book_list)
+    if b!='请选择':
+        txt=os.path.join(file,f'{b}')
+        os.remove(txt)
 #%%加载数据
 def user_data_load(column):
     for c in range(len(column)):
@@ -196,6 +382,90 @@ def user_data_load(column):
             with open('./用户数据.txt','a',encoding='utf-8') as U:
                 U.write(column[c])
                 U.write('\n')
+#%%爬取另外的信息
+def get_analyse(user_agent,data,n1,n2):
+    url_title='https://www.bbiquge.net'
+    title_list=[]
+    label_list=[]
+    result_list=[]
+    count_novel_list=[]
+    result_analyse_list=[]
+    last_time1_list=[]
+    author_list=[]
+    pass_url_list=[]
+    st.write(data.head(10))
+    for  i in range(len(list(data['网址'][n1:n2]))):
+        try:
+            if i%10==0:
+                st.write(i)
+            e=get_book_danye(user_agent,list(data['网址'][n1:n2])[i])
+            #获取书名
+            title=e.xpath('/html/body/div[3]/div/div[3]/h1/text()')[0]
+            #最后一章更新时间last_time
+            last_time1=e.xpath('/html/body/div[3]/div/div[3]/div[1]/text()[2]')[0].split('（')[1].split('）')[0]
+            #分类label
+            try:
+                label=e.xpath('/html/body/div[3]/div/div[1]/a[2]/text()')[0]
+            except:
+                label='未知分类'
+            #获取最后一页url_last
+            try:
+                url_last=url_title+e.xpath('/html/body/div[4]/div/select/option/@value')[-1]
+            except:
+                url_last=list(data['网址'][n1:n2])[i]+'1.html'
+                
+            #获取最后一页所有章节名,判断是否有大结局字样
+            
+            e1=get_book_danye(user_agent,url_last)
+            all_title=e1.xpath('/html/body/div[4]/dl/dd/a/text()')
+            count=0
+            for i in all_title:
+                if '大结局'  in i:
+                    print(i)
+                    count+=1
+                elif '完本' in i:
+                    count+=1
+            if count>=1:
+                result='完本'
+                result_analyse='完本'
+            else:
+                result='未完本'
+            
+            
+            author=e.xpath('/html/body/div[3]/div/div[3]/h1/small/a/text()')[0]
+            index=data['作者']==author
+            count_novel=index.sum()
+            if count==0 and count_novel>1:
+                result_analyse='未完本非该作者唯一作品'
+            elif count==0 and count_novel==1:
+                result_analyse='未完本是该作者唯一作品'
+            
+            title_list.append(title)
+            label_list.append(label)
+            result_list.append(result)
+            count_novel_list.append(count_novel)
+            result_analyse_list.append(result_analyse)
+            last_time1_list.append(last_time1)
+            author_list.append(author)
+        except:
+            pass_url_list.append(list(data['网址'][n1:n2])[i])
+            pass
+            continue
+        
+        
+    data1=pd.DataFrame()
+    data1_1=pd.DataFrame()
+    data1_1['失效网址']=pass_url_list
+    data1['作品名']=title_list
+    data1['作家']=author_list
+    data1['分类']=label_list
+    data1['完本情况']=result_list
+    data1['该作者作品数']=count_novel_list
+    data1['作品完本分析']=result_analyse_list
+    data1['最后更新时间']=pd.to_datetime(last_time1_list)
+    #st.dataframe(data1)
+    data1_1.to_csv(f'./notpass{n1}_{n2}.csv',index=False)
+    data1.to_csv(f'./bq_analyse_{n1}_{n2}.csv',index=False)
 def tool_box():
     #一键更新51书城所有书目
     choose=st.sidebar.selectbox('功能选择', ['查看用户数据','更新51书目','更新笔趣阁书目','更新笔趣阁分析数据','一键删除用户数据','一键插入标题行','查看已下载小说','查看51书城书目','查看笔趣书目','删除笔趣书目','查看笔趣分析数据集','查看数据分析失效'])
@@ -205,18 +475,66 @@ def tool_box():
         delete_data(file,book_list)
     elif choose=='一键插入标题行'  :
         user_data_load(column)
-
+    elif choose=='更新笔趣阁分析数据':
+        st.write(data.shape)
+        n1=int(st.text_input('请输入从第几页开始:'))
+        n2=int(st.text_input('请输入从第几页结束:'))
+        if n1==None and n2==None:
+            st.stop()
+        st.success(get_analyse(user_agent,data,n1,n2))
     elif choose=='更新笔趣阁书目':
         st.write('该功能已暂时关闭')
-
+        # n1=int(st.text_input('请输入从第几页开始:'))
+        # n2=int(st.text_input('请输入从第几页结束:'))
+        # if n1==None and n2==None:
+        #     st.stop()
+        # st.success(get_biqu_all_book(user_agent,n1,n2))
+    elif choose=='更新51书目':
+        st.write('该功能已暂时关闭')
+    #     get_51_all_book(user_agent)
     elif choose=='查看已下载小说':
         show_book(book_list)
-
+    elif choose=='查看51书城书目':
+        show_51_book()
     elif choose=="查看笔趣书目":
-        data_look=get_biqu_book('笔趣阁所有')
+        data_look=get_all_book('笔趣阁所有')
         data21=data_look.to_csv()
         st.download_button('保存目录',data21,file_name='book.csv')
-   
+    elif choose=='删除笔趣书目':
+        code11=st.text_input('请输入删除的密码：')
+        if code11!='zwz':
+            st.stop()
+        st.success(delete_biqu('笔趣阁所有')
+                )
+    elif choose=='查看笔趣分析数据集':
+        file=os.getcwd()
+        file_local=os.listdir(file)
+        biqu_data=pd.DataFrame()
+        for j in file_local:
+            if '.csv' in j:
+                if 'bq_analyse' in j:
+                    txt=os.path.join(file,f'{j}')
+                    data1=pd.read_csv(txt)
+                    #st.dataframe(data1)
+                    biqu_data=pd.concat([biqu_data,data1])
+        #st.dataframe(biqu_data)
+        st.write(biqu_data.shape)
+        code12=st.text_input('请输入删除的密码：')
+        if code12!='zwz':
+            st.stop()
+        st.success(delete_biqu('bq_analyse'))
+    elif choose=='查看数据分析失效':
+        file=os.getcwd()
+        file_local=os.listdir(file)
+        biqu_data=pd.DataFrame()
+        for j in file_local:
+            if '.csv' in j:
+                if 'notpass' in j:
+                    txt=os.path.join(file,f'{j}')
+                    data1=pd.read_csv(txt)
+                    #st.dataframe(data1)
+                    biqu_data=pd.concat([biqu_data,data1])
+        st.dataframe(biqu_data)
 #%% 字典去重
 func=lambda data:dict([x,y] for y,x in data.items())
 
@@ -314,3 +632,4 @@ st.success(
     tool_box()
     
     )
+    
