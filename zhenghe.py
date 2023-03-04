@@ -183,6 +183,7 @@ def delete_data(file,book_list):
 @st.cache_data
 def get_biqu_book():
     data=pd.read_csv('./data/book.csv')
+    st.dataframe(data)
     return data
 #%%加载数据
 def user_data_load(column):
