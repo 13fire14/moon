@@ -26,7 +26,7 @@ import os
 st.set_page_config(page_title='明月傍窗好读书')
 st.title('欢迎来到免费小说下载平台')
 
-data=pd.read_csv('./data/book.csv')
+data=pd.read_csv('./data/book.csv',index=None)
 st.write(data.head(10))
 # user_agent=['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.71 Safari/537.36',
 #   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
